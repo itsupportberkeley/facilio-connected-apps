@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WO Time & Cost</title>
+    <script type="text/javascript" src="https://static.facilio.com/apps-sdk/latest/facilio_apps_sdk.min.js"></script>
+    <style>
+        .tracker-card {
+            font-family: Arial, sans-serif;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+        }
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            border-bottom: 1px dashed #eee;
+            padding-bottom: 4px;
+        }
+        .data-row:last-child { border-bottom: none; margin-bottom: 0; }
+        .label { font-weight: bold; color: #555; }
+        .value { color: #007bff; }
+        .error { color: red; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="tracker-card">
+        <h3>📊 Work Order Metrics</h3>
+        <div id="status-message">Loading Work Order Data...</div>
+        <div id="metrics-container" style="display:none;">
+            <div class="data-row">
+                <span class="label">Total Time Spent:</span>
+                <span class="value" id="time-spent"></span>
+            </div>
+            <div class="data-row">
+                <span class="label">Estimated Cost:</span>
+                <span class="value" id="estimated-cost"></span>
+            </div>
+            <div class="data-row">
+                <span class="label">Actual Labor Cost:</span>
+                <span class="value" id="actual-labor-cost"></span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const app = FacilioAppSDK.init();
+            const statusMessage = document.getElementById('status-message');
+            const metricsContainer = document.getElementById('metrics-container');
+
+            app.on('app.loaded', () => {
+                const context = app.getContext();
+                
+                if (context && context.workorder) {
+                    const recordId = context.workorder.id;
+
+                    // In a real Facilio CMMS, these fields (TotalTimeSpent, EstimatedCost, etc.) 
+                    // are either computed or directly available on the workorder record.
+                    // We use the SDK's API to fetch the Work Order record with the required fields.
+                    app.api.fetchRecord('workorder', {
+                        id: recordId,
+                        // **NOTE:** Replace these with the actual API names (link names) of your fields 
+                        // if they are custom or named differently in your Facilio instance.
+                        fields: 'totalTimeSpent,estimatedCost,actualLaborCost' 
+                    })
+                    .then((response) => {
+                        const woData = response.workorder;
+                        
+                        // Function to format seconds into HH:MM (assuming totalTimeSpent is in seconds)
+                        const formatTime = (seconds) => {
+                            if (!seconds) return '0 hrs';
+                            const hours = Math.floor(seconds / 3600);
+                            const minutes = Math.floor((seconds % 3600) / 60);
+                            return `${hours}h ${minutes}m`;
+                        };
+                        
+                        // Simple currency formatter (assuming USD, adjust as needed)
+                        const formatCurrency = (amount) => {
+                            if (amount === undefined || amount === null) return 'N/A';
+                            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+                        };
+
+                        // Update the DOM
+                        document.getElementById('time-spent').textContent = formatTime(woData.totalTimeSpent);
+                        document.getElementById('estimated-cost').textContent = formatCurrency(woData.estimatedCost);
+                        document.getElementById('actual-labor-cost').textContent = formatCurrency(woData.actualLaborCost);
+
+                        statusMessage.style.display = 'none';
+                        metricsContainer.style.display = 'block';
+                    })
+                    .catch((error) => {
+                        console.error('Error fetching Work Order data:', error);
+                        statusMessage.className = 'error';
+                        statusMessage.textContent = 'ERROR: Could not fetch metrics.';
+                        metricsContainer.style.display = 'none';
+                    });
+
+                } else {
+                    statusMessage.className = 'error';
+                    statusMessage.textContent = 'This widget must be placed on a Work Order Summary Page.';
+                    metricsContainer.style.display = 'none';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
